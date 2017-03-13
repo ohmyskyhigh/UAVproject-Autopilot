@@ -24,7 +24,7 @@ Adafruit_BMP085_Unified bmp = Adafruit_BMP085_Unified(10085);
   //Adafruit_L3GD20 gyro(GYRO_CS, GYRO_DO, GYRO_DI, GYRO_CLK);
 #endif
 
-void displaySensorDetails(void)
+void displaySensorDetails()
 {
   sensor_t sensor;
   accel.getSensor(&sensor);
@@ -101,7 +101,7 @@ void setup(void)
   }
 }
 
-void loop(void)
+void loop()
 {
 
 //Accelerometer part
