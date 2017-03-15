@@ -30,48 +30,6 @@ Adafruit_BMP085_Unified bmp = Adafruit_BMP085_Unified(10085);
   //Adafruit_L3GD20 gyro(GYRO_CS, GYRO_DO, GYRO_DI, GYRO_CLK);
 #endif
 
-void displaySensorDetails()
-{
-  sensor_t sensor;
-  accel.getSensor(&sensor);
-  Serial.println("------------------------------------");
-  Serial.print  ("Sensor:       "); Serial.println(sensor.name);
-  Serial.print  ("Driver Ver:   "); Serial.println(sensor.version);
-  Serial.print  ("Unique ID:    "); Serial.println(sensor.sensor_id);
-  Serial.print  ("Max Value:    "); Serial.print(sensor.max_value); Serial.println(" m/s^2");
-  Serial.print  ("Min Value:    "); Serial.print(sensor.min_value); Serial.println(" m/s^2");
-  Serial.print  ("Resolution:   "); Serial.print(sensor.resolution); Serial.println(" m/s^2");
-  Serial.println("------------------------------------");
-  Serial.println("");
-  delay(500);
-
-
-  bmp.getSensor(&sensor);
-  Serial.println("------------------------------------");
-  Serial.print  ("Sensor:       "); Serial.println(sensor.name);
-  Serial.print  ("Driver Ver:   "); Serial.println(sensor.version);
-  Serial.print  ("Unique ID:    "); Serial.println(sensor.sensor_id);
-  Serial.print  ("Max Value:    "); Serial.print(sensor.max_value); Serial.println(" hPa");
-  Serial.print  ("Min Value:    "); Serial.print(sensor.min_value); Serial.println(" hPa");
-  Serial.print  ("Resolution:   "); Serial.print(sensor.resolution); Serial.println(" hPa");  
-  Serial.println("------------------------------------");
-  Serial.println("");
-  delay(500);
-
-  gero.read();
-  Serial.println("------------------------------------");
-  Serial.print  ("Sensor:       "); Serial.println((String)gyro.name);
-  Serial.print  ("Driver Ver:   "); Serial.println(gyro.version);
-  Serial.print  ("Unique ID:    "); Serial.println(gyro.sensor_id);
-  Serial.print  ("Max Value:    "); Serial.print(gyro.max_value);
-  Serial.print  ("Min Value:    "); Serial.print(gyro.min_value); 
-  Serial.print  ("Resolution:   "); Serial.print(gyro.resolution);  
-  Serial.println("------------------------------------");
-  Serial.println("");
-  delay(500);
-  
-}
-
 void setup(void){
   //Open serial communications and wait for port to open
   Serial.begin(9600);
@@ -91,24 +49,23 @@ void setup(void){
 
 //give a name to our file
   char fileName[13];
-  strcpy(filename, "LOG00.CSV")
+  strcpy(fileName, "LOG00.CSV");
   for (uint8_t i = 0; i < 100; i++){
-    filename[3] = "0" + i/10;
-    filename[4] = "0" + i%10;
-    if(! SD.exists(filename)){
+    fileName[3] = "0" + i/10;
+    fileName[4] = "0" + i%10;
+    if(! SD.exists(fileName)){
       break;
     }
   }
 
 //create logfile
-  logFile = SD.open(filename, FILE_WRITE);
-  if( ! logfile ) {
+  logFile = SD.open(fileName, FILE_WRITE);
+  if( ! logFile ) {
     Serial.print("Couldnt create "); 
-    Serial.println(filename);
-    error(3);
+    Serial.println(fileName);
   }
   Serial.print("Writing to "); 
-  Serial.println(filename);
+  Serial.println(fileName);
 
 
   //Accelerometer part
@@ -148,8 +105,6 @@ void setup(void){
     Serial.println("Oops ... unable to initialize the L3GD20. Check your wiring!");
     while (1);
   }
-    /* Display some basic information on this sensor */
-  displaySensorDetails();
 
 //create header for each collumn
   logFile.print("accel x(m/s^2)");
@@ -160,6 +115,7 @@ void setup(void){
   logFile.print("gyro x(m/s^2)");
   logFile.print("gyro y(m/s^2)");
   logFile.println("gyro z(m/s^2)");
+  delay(500);
 }
 
 void loop()
@@ -175,20 +131,15 @@ void loop()
   Serial.print("Y: "); Serial.print(event.acceleration.y); Serial.print("  ");
   Serial.print("Z: "); Serial.print(event.acceleration.z); Serial.print("  ");Serial.println("m/s^2 ");
 
-  /* Note: You can also get the raw (non unified values) for */
-  /* the last data sample as follows. The .getEvent call populates */
-  /* the raw values used below. */
-  //Serial.print("X Raw: "); Serial.print(accel.raw.x); Serial.print("  ");
-  //Serial.print("Y Raw: "); Serial.print(accel.raw.y); Serial.print("  ");
-  //Serial.print("Z Raw: "); Serial.print(accel.raw.z); Serial.println("");
-
   /* Delay before the next sample */
   delay(500);
 
 
 //Pressure sensor part
   bmp.getEvent(&event);
- 
+  float temperature;
+  float seaLevelPressure;
+  
   /* Display the results (barometric pressure is measure in hPa) */
   if (event.pressure)
   {
@@ -197,7 +148,7 @@ void loop()
     Serial.print(event.pressure);
     Serial.println(" hPa");
 
-    float temperature;
+    
     bmp.getTemperature(&temperature);
     Serial.print("Temperature: ");
     Serial.print(temperature);
@@ -205,7 +156,7 @@ void loop()
 
     /* Then convert the atmospheric pressure, and SLP to altitude         */
     /* Update this next line with the current SLP for better results      */
-    float seaLevelPressure = SENSORS_PRESSURE_SEALEVELHPA;
+    seaLevelPressure = SENSORS_PRESSURE_SEALEVELHPA;
     Serial.print("Altitude:    "); 
     Serial.print(bmp.pressureToAltitude(seaLevelPressure,
                                         event.pressure)); 
@@ -225,4 +176,18 @@ void loop()
   Serial.print("Y: "); Serial.print((int)gyro.data.y);   Serial.print(" ");
   Serial.print("Z: "); Serial.println((int)gyro.data.z); Serial.print(" ");
   delay(100);
+
+//dataLogging
+  logFile.print(event.acceleration.x);
+  logFile.print(event.acceleration.y);
+  logFile.print(event.acceleration.z);
+  logFile.print(event.pressure);
+  logFile.print(temperature);
+  logFile.print(bmp.pressureToAltitude(seaLevelPressure, event.pressure));
+  logFile.print((int)gyro.data.x);
+  logFile.print((int)gyro.data.y);
+  logFile.println((int)gyro.data.z);
+  logFile.flush();
+  Serial.println("...");
+  delay(500);
 }
