@@ -1,95 +1,107 @@
-#include <SPI.h>
-#include <Adafruit_GPS.h>
-#include <SoftwareSerial.h>
-#include <SD.h>
-#include <avr/sleep.h>
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
+#include <Adafruit_LSM303_U.h>
+#include <Adafruit_BMP085_U.h>
+#include <Adafruit_L3GD20.h>
+#include<SPI.h>
+#include<SD.h>
+
+//SD card login
+File logFile;
+const int chipSelect = 4;
+
+/* Assign a unique ID to this sensor at the same time */ 
+Adafruit_LSM303_Accel_Unified accel = Adafruit_LSM303_Accel_Unified(54321);
+Adafruit_BMP085_Unified bmp = Adafruit_BMP085_Unified(10085);
 
 
-//Assign GPS
-SoftwareSerial mySerial(8, 7);
-Adafruit_GPS GPS(&mySerial);
+//Gyro primary settings, defining whether to use I²C or SPI
+#define USE_I2C
 
-// Set GPSECHO to 'false' to turn off echoing the GPS data to the Serial console
-// Set to 'true' if you want to debug and listen to the raw GPS sentences
-#define GPSECHO  true
-/* set to true to only log to SD when GPS has a fix, for debugging, keep it false */
-#define LOG_FIXONLY false  
+#ifdef USE_I2C
+  // The default constructor uses I2C
+  Adafruit_L3GD20 gyro;
+#else
+  // To use SPI, you have to define the pins
+  //#define GYRO_CS 4 // labeled CS
+  //#define GYRO_DO 5 // labeled SA0
+  //#define GYRO_DI 6  // labeled SDA
+  //#define GYRO_CLK 7 // labeled SCL
+  //Adafruit_L3GD20 gyro(GYRO_CS, GYRO_DO, GYRO_DI, GYRO_CLK);
+#endif
 
-// this keeps track of whether we're using the interrupt
-// off by default!
-boolean usingInterrupt = false;
-void useInterrupt(boolean); // Func prototype keeps Arduino 0023 happy
+void displaySensorDetails()
+{
+  sensor_t sensor;
+  accel.getSensor(&sensor);
+  Serial.println("------------------------------------");
+  Serial.print  ("Sensor:       "); Serial.println(sensor.name);
+  Serial.print  ("Driver Ver:   "); Serial.println(sensor.version);
+  Serial.print  ("Unique ID:    "); Serial.println(sensor.sensor_id);
+  Serial.print  ("Max Value:    "); Serial.print(sensor.max_value); Serial.println(" m/s^2");
+  Serial.print  ("Min Value:    "); Serial.print(sensor.min_value); Serial.println(" m/s^2");
+  Serial.print  ("Resolution:   "); Serial.print(sensor.resolution); Serial.println(" m/s^2");
+  Serial.println("------------------------------------");
+  Serial.println("");
+  delay(500);
 
-// Set the pins used
-#define chipSelect 10
-#define ledPin 13
 
-File logfile;
+  bmp.getSensor(&sensor);
+  Serial.println("------------------------------------");
+  Serial.print  ("Sensor:       "); Serial.println(sensor.name);
+  Serial.print  ("Driver Ver:   "); Serial.println(sensor.version);
+  Serial.print  ("Unique ID:    "); Serial.println(sensor.sensor_id);
+  Serial.print  ("Max Value:    "); Serial.print(sensor.max_value); Serial.println(" hPa");
+  Serial.print  ("Min Value:    "); Serial.print(sensor.min_value); Serial.println(" hPa");
+  Serial.print  ("Resolution:   "); Serial.print(sensor.resolution); Serial.println(" hPa");  
+  Serial.println("------------------------------------");
+  Serial.println("");
+  delay(500);
 
-// read a Hex value and return the decimal equivalent
-uint8_t parseHex(char c) {
-  if (c < '0')
-    return 0;
-  if (c <= '9')
-    return c - '0';
-  if (c < 'A')
-    return 0;
-  if (c <= 'F')
-    return (c - 'A')+10;
+  gero.read();
+  Serial.println("------------------------------------");
+  Serial.print  ("Sensor:       "); Serial.println((String)gyro.name);
+  Serial.print  ("Driver Ver:   "); Serial.println(gyro.version);
+  Serial.print  ("Unique ID:    "); Serial.println(gyro.sensor_id);
+  Serial.print  ("Max Value:    "); Serial.print(gyro.max_value);
+  Serial.print  ("Min Value:    "); Serial.print(gyro.min_value); 
+  Serial.print  ("Resolution:   "); Serial.print(gyro.resolution);  
+  Serial.println("------------------------------------");
+  Serial.println("");
+  delay(500);
+  
 }
 
-// blink out an error code
-void error(uint8_t errno) {
-  /*
-  if (SD.errorCode()) {
-   putstring("SD error: ");
-   Serial.print(card.errorCode(), HEX);
-   Serial.print(',');
-   Serial.println(card.errorData(), HEX);
-   }
-   */
-  while(1) {
-    uint8_t i;
-    for (i=0; i<errno; i++) {
-      digitalWrite(ledPin, HIGH);
-      delay(100);
-      digitalWrite(ledPin, LOW);
-      delay(100);
-    }
-    for (i=errno; i<10; i++) {
-      delay(200);
-    }
+void setup(void){
+  //Open serial communications and wait for port to open
+  Serial.begin(9600);
+
+  Serial.print("Initializing SD card...");
+  // On the Ethernet Shield, CS is pin 4. It's set as an output by default.
+  // Note that even if it's not used as the CS pin, the hardware SS pin 
+  // (10 on most Arduino boards, 53 on the Mega) must be left as an output 
+  // or the SD library functions will not work. 
+    pinMode(SS, OUTPUT);
+
+  if (!SD.begin(chipSelect)) {
+    Serial.println("initialization failed!");
+    return;
   }
-}
+  Serial.println("initialization done.");
 
-void setup() {  
-  Serial.begin(115200);
-  Serial.println("\r\nUltimate GPSlogger Shield");
-  pinMode(ledPin, OUTPUT);
-
-  // make sure that the default chip select pin is set to
-  // output, even if you don't use it:
-  pinMode(10, OUTPUT);
-
-  // see if the card is present and can be initialized:
-  if (!SD.begin(chipSelect)) {      // if you're using an UNO, you can use this line instead
-    Serial.println("Card init. failed!");
-    error(2);
-  }
-  char filename[15];
-  strcpy(filename, "LOG00.CSV");
-  for (uint8_t i = 0; i < 100; i++) {
-    filename[3] = '0' + i/10;
-    filename[4] = '0' + i%10;
-    // create if does not exist, do not open existing, write, sync after write
-    if (! SD.exists(filename)) {
+//give a name to our file
+  char fileName[13];
+  strcpy(filename, "LOG00.CSV")
+  for (uint8_t i = 0; i < 100; i++){
+    filename[3] = "0" + i/10;
+    filename[4] = "0" + i%10;
+    if(! SD.exists(filename)){
       break;
     }
   }
 
-  logfile = SD.open(filename, FILE_WRITE);
+//create logfile
+  logFile = SD.open(filename, FILE_WRITE);
   if( ! logfile ) {
     Serial.print("Couldnt create "); 
     Serial.println(filename);
@@ -98,90 +110,119 @@ void setup() {
   Serial.print("Writing to "); 
   Serial.println(filename);
 
-  // connect to the GPS at the desired rate
-  GPS.begin(9600);
 
-  // uncomment this line to turn on RMC (recommended minimum) and GGA (fix data) including altitude
-  GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);
-  // uncomment this line to turn on only the "minimum recommended" data
-  //GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCONLY);
-  // For logging data, we don't suggest using anything but either RMC only or RMC+GGA
-  // to keep the log files at a reasonable size
-  // Set the update rate
-  GPS.sendCommand(PMTK_SET_NMEA_UPDATE_1HZ);   // 1 or 5 Hz update rate
-
-  // Turn off updates on antenna status, if the firmware permits it
-  GPS.sendCommand(PGCMD_NOANTENNA);
-
-  // the nice thing about this code is you can have a timer0 interrupt go off
-  // every 1 millisecond, and read data from the GPS for you. that makes the
-  // loop code a heck of a lot easier!
-  useInterrupt(true);
-
-  Serial.println("Ready!");
-}
-
-
-// Interrupt is called once a millisecond, looks for any new GPS data, and stores it
-SIGNAL(TIMER0_COMPA_vect) {
-  char c = GPS.read();
-  // if you want to debug, this is a good time to do it!
-  #ifdef UDR0
-      if (GPSECHO)
-        if (c) UDR0 = c;  
-      // writing direct to UDR0 is much much faster than Serial.print 
-      // but only one character can be written at a time. 
+  //Accelerometer part
+  #ifndef ESP8266
+    while (!Serial);     // will pause Zero, Leonardo, etc until serial console opens
   #endif
-}
+    Serial.begin(9600);
+    Serial.println("Accelerometer Test"); Serial.println("");
 
-void useInterrupt(boolean v) {
-  if (v) {
-    // Timer0 is already used for millis() - we'll just interrupt somewhere
-    // in the middle and call the "Compare A" function above
-    OCR0A = 0xAF;
-    TIMSK0 |= _BV(OCIE0A);
-    usingInterrupt = true;
-  } 
-  else {
-    // do not call the interrupt function COMPA anymore
-    TIMSK0 &= ~_BV(OCIE0A);
-    usingInterrupt = false;
+  /* Initialise the sensor */
+  if(!accel.begin())
+  {
+    /* There was a problem detecting the ADXL345 ... check your connections */
+    Serial.println("Ooops, no LSM303 detected ... Check your wiring!");
+    while(1);
   }
-}
 
-void loop() {
 
-  if (! usingInterrupt) {
-    // read data from the GPS in the 'main loop'
-    char c = GPS.read();
-    // if you want to debug, this is a good time to do it!
-    if (GPSECHO)
-      if (c);
-  }
+//Pressure sensor part
+  Serial.begin(9600);
+  Serial.println("Pressure Sensor Test"); Serial.println("");
   
-  // if a sentence is received, we can check the checksum, parse it...
-  if (GPS.newNMEAreceived()) {
-    char *stringptr = GPS.lastNMEA();
-    
-    if (!GPS.parse(stringptr))   // this also sets the newNMEAreceived() flag to false
-      return;  // we can fail to parse a sentence in which case we should just wait for another
-
-    // Sentence parsed! 
-    Serial.println("OK");
-    if (LOG_FIXONLY && !GPS.fix) {
-      Serial.print("No Fix");
-      return;
-    }
-
-    // Rad. lets log it!
-    Serial.println("Log");
-
-    if (GPS.fix) {
-      logfile.print(GPS.latitude, 4);
-      logfile.println(GPS.longitude, 4);
-      logfile.flush();
-      Serial.println("done!");
-      delay(500);
-    }
+  /* Initialise the sensor */
+  if(!bmp.begin())
+  {
+    /* There was a problem detecting the BMP085 ... check your connections */
+    Serial.print("Ooops, no BMP085 detected ... Check your wiring or I2C ADDR!");
+    while(1);
   }
+
+//Gyro part
+  // Try to initialise and warn if we couldn't detect the chip
+  if (!gyro.begin(gyro.L3DS20_RANGE_250DPS))
+  //if (!gyro.begin(gyro.L3DS20_RANGE_500DPS))
+  //if (!gyro.begin(gyro.L3DS20_RANGE_2000DPS))
+  {
+    Serial.println("Oops ... unable to initialize the L3GD20. Check your wiring!");
+    while (1);
+  }
+    /* Display some basic information on this sensor */
+  displaySensorDetails();
+
+//create header for each collumn
+  logFile.print("accel x(m/s^2)");
+  logFile.print("accel y(m/s^2)");
+  logFile.print("press (hPa)");
+  logFile.print("tempe (C))");
+  logFile.print("altit (m)");  
+  logFile.print("gyro x(m/s^2)");
+  logFile.print("gyro y(m/s^2)");
+  logFile.println("gyro z(m/s^2)");
+}
+
+void loop()
+{
+
+//Accelerometer part
+  /* Get a new sensor event */
+  sensors_event_t event;
+  accel.getEvent(&event);
+
+  /* Display the results (acceleration is measured in m/s^2) */
+  Serial.print("X: "); Serial.print(event.acceleration.x); Serial.print("  ");
+  Serial.print("Y: "); Serial.print(event.acceleration.y); Serial.print("  ");
+  Serial.print("Z: "); Serial.print(event.acceleration.z); Serial.print("  ");Serial.println("m/s^2 ");
+
+  /* Note: You can also get the raw (non unified values) for */
+  /* the last data sample as follows. The .getEvent call populates */
+  /* the raw values used below. */
+  //Serial.print("X Raw: "); Serial.print(accel.raw.x); Serial.print("  ");
+  //Serial.print("Y Raw: "); Serial.print(accel.raw.y); Serial.print("  ");
+  //Serial.print("Z Raw: "); Serial.print(accel.raw.z); Serial.println("");
+
+  /* Delay before the next sample */
+  delay(500);
+
+
+//Pressure sensor part
+  bmp.getEvent(&event);
+ 
+  /* Display the results (barometric pressure is measure in hPa) */
+  if (event.pressure)
+  {
+    /* Display atmospheric pressue in hPa */
+    Serial.print("Pressure:    ");
+    Serial.print(event.pressure);
+    Serial.println(" hPa");
+
+    float temperature;
+    bmp.getTemperature(&temperature);
+    Serial.print("Temperature: ");
+    Serial.print(temperature);
+    Serial.println(" C");
+
+    /* Then convert the atmospheric pressure, and SLP to altitude         */
+    /* Update this next line with the current SLP for better results      */
+    float seaLevelPressure = SENSORS_PRESSURE_SEALEVELHPA;
+    Serial.print("Altitude:    "); 
+    Serial.print(bmp.pressureToAltitude(seaLevelPressure,
+                                        event.pressure)); 
+    Serial.println(" m");
+    Serial.println("");
+  }
+  else
+  {
+    Serial.println("Sensor error");
+  }
+  delay(500);
+
+
+//Gyro part
+  gyro.read();
+  Serial.print("X: "); Serial.print((int)gyro.data.x);   Serial.print(" ");
+  Serial.print("Y: "); Serial.print((int)gyro.data.y);   Serial.print(" ");
+  Serial.print("Z: "); Serial.println((int)gyro.data.z); Serial.print(" ");
+  delay(100);
 }
