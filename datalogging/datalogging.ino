@@ -3,17 +3,20 @@
 #include <Adafruit_LSM303_U.h>
 #include <Adafruit_BMP085_U.h>
 #include <Adafruit_L3GD20.h>
-#include<SPI.h>
-#include<SD.h>
+#include <SPI.h>
+#include <SD.h>
 
-//SD card login
-File logFile;
+// On the Ethernet Shield, CS is pin 4. Note that even if it's not
+// used as the CS pin, the hardware CS pin (10 on most Arduino boards,
+// 53 on the Mega) must be left as an output or the SD library
+// functions will not work.
 const int chipSelect = 4;
+
+File logFile;
 
 /* Assign a unique ID to this sensor at the same time */ 
 Adafruit_LSM303_Accel_Unified accel = Adafruit_LSM303_Accel_Unified(54321);
 Adafruit_BMP085_Unified bmp = Adafruit_BMP085_Unified(10085);
-
 
 //Gyro primary settings, defining whether to use I²C or SPI
 #define USE_I2C
@@ -30,43 +33,44 @@ Adafruit_BMP085_Unified bmp = Adafruit_BMP085_Unified(10085);
   //Adafruit_L3GD20 gyro(GYRO_CS, GYRO_DO, GYRO_DI, GYRO_CLK);
 #endif
 
-void setup(void){
-  //Open serial communications and wait for port to open
+
+void setup()
+{
+ // Open serial communications and wait for port to open:
   Serial.begin(9600);
 
   Serial.print("Initializing SD card...");
-  // On the Ethernet Shield, CS is pin 4. It's set as an output by default.
-  // Note that even if it's not used as the CS pin, the hardware SS pin 
-  // (10 on most Arduino boards, 53 on the Mega) must be left as an output 
-  // or the SD library functions will not work. 
-    pinMode(SS, OUTPUT);
-
+  // make sure that the default chip select pin is set to
+  // output, even if you don't use it:
+  pinMode(SS, OUTPUT);
+  
+  // see if the card is present and can be initialized:
   if (!SD.begin(chipSelect)) {
-    Serial.println("initialization failed!");
-    return;
+    Serial.println("Card failed, or not present");
+    // don't do anything more:
+    while (1) ;
   }
-  Serial.println("initialization done.");
+  Serial.println("card initialized.");
 
-//give a name to our file
-  char fileName[13];
-  strcpy(fileName, "LOG00.CSV");
-  for (uint8_t i = 0; i < 100; i++){
-    fileName[3] = "0" + i/10;
-    fileName[4] = "0" + i%10;
-    if(! SD.exists(fileName)){
+  //give a name to our file
+  char filename[15];
+  strcpy(filename, "SENLOG00.CSV");
+  for (uint8_t i = 0; i < 100; i++) {
+    filename[6] = '0' + i/10;
+    filename[7] = '0' + i%10;
+    // create if does not exist, do not open existing, write, sync after write
+    if (! SD.exists(filename)) {
       break;
     }
   }
-
-//create logfile
-  logFile = SD.open(fileName, FILE_WRITE);
-  if( ! logFile ) {
-    Serial.print("Couldnt create "); 
-    Serial.println(fileName);
+  
+  // Open up the file we're going to log to!
+  logFile = SD.open(filename, FILE_WRITE);
+  if (! logFile) {
+    Serial.println("error opening");
+    // Wait forever since we cant write data
+    while (1) ;
   }
-  Serial.print("Writing to "); 
-  Serial.println(fileName);
-
 
   //Accelerometer part
   #ifndef ESP8266
@@ -108,19 +112,27 @@ void setup(void){
 
 //create header for each collumn
   logFile.print("accel x(m/s^2)");
+  logFile.print(",");
   logFile.print("accel y(m/s^2)");
+  logFile.print(",");
+  logFile.print("accel z(m/s^2)");
+  logFile.print(",");
   logFile.print("press (hPa)");
+  logFile.print(",");
   logFile.print("tempe (C))");
+  logFile.print(",");
   logFile.print("altit (m)");  
+  logFile.print(",");
   logFile.print("gyro x(m/s^2)");
+  logFile.print(",");
   logFile.print("gyro y(m/s^2)");
+  logFile.print(",");
   logFile.println("gyro z(m/s^2)");
   delay(500);
 }
 
 void loop()
 {
-
 //Accelerometer part
   /* Get a new sensor event */
   sensors_event_t event;
@@ -161,7 +173,6 @@ void loop()
     Serial.print(bmp.pressureToAltitude(seaLevelPressure,
                                         event.pressure)); 
     Serial.println(" m");
-    Serial.println("");
   }
   else
   {
@@ -179,15 +190,32 @@ void loop()
 
 //dataLogging
   logFile.print(event.acceleration.x);
+  logFile.print(",");
   logFile.print(event.acceleration.y);
+  logFile.print(",");
   logFile.print(event.acceleration.z);
+  logFile.print(",");
   logFile.print(event.pressure);
+  logFile.print(",");
   logFile.print(temperature);
+  logFile.print(",");
   logFile.print(bmp.pressureToAltitude(seaLevelPressure, event.pressure));
+  logFile.print(",");
   logFile.print((int)gyro.data.x);
+  logFile.print(",");
   logFile.print((int)gyro.data.y);
+  logFile.print(",");
   logFile.println((int)gyro.data.z);
   logFile.flush();
   Serial.println("...");
   delay(500);
 }
+
+
+
+
+
+
+
+
+
