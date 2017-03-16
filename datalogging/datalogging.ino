@@ -133,6 +133,10 @@ void setup()
 
 void loop()
 {
+//millis()
+  float Time = millis()/1000;
+  Serial.println(Time);
+  
 //Accelerometer part
   /* Get a new sensor event */
   sensors_event_t event;
@@ -205,7 +209,9 @@ void loop()
   logFile.print(",");
   logFile.print((int)gyro.data.y);
   logFile.print(",");
-  logFile.println((int)gyro.data.z);
+  logFile.print((int)gyro.data.z);
+  logFile.print(",");
+  logFile.println(Time);
   logFile.flush();
   Serial.println("...");
   delay(500);
