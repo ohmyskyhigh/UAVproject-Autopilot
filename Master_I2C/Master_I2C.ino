@@ -5,15 +5,27 @@ void setup() {
   Wire.begin();
 }
 
-byte x = 0; 
+float x = 3.1415926;
+float y = 8.31;
+float c = 1.111;
+float d = 1.04;
+String stringA = String(x, 2);
+String stringB = String(y, 2);
+String stringC = String(c, 2);
+String stringD = String(d, 2);
 
 void loop() {
   Wire.beginTransmission(5);
-  Wire.write("i am a whore");
-  Wire.write(x);
+  //Try to split the following string 
+  //String stringOne =  String(5.698, 3);                                // using a float and the decimal 
+  Wire.write(stringA);
+  Wire.write("Z");
+  Wire.write(stringB);
+  Wire.write("Z");
+  Wire.write(stringC);
+  Wire.write("Z");
+  Wire.write(stringD);
   Wire.endTransmission();
-
-  x++;
   delay(500);
   
 

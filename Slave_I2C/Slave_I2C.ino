@@ -10,9 +10,11 @@ void setup() {
 void dataIN(int numBytes){
   while (1 < Wire.available()){
     char c = Wire.read();
+    //String stringOne =  String('a');                                          // converting a constant char 
+    String x = String(c);
+    
     Serial.print(c);    
   }
-  int x = Wire.read();
 }
       
 void loop() {
