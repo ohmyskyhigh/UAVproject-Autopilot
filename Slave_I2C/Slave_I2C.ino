@@ -22,4 +22,16 @@ void loop() {
 
 }
 
+array stringSuckMyDick(String s, String c){
+  int m = s.lastIndexOf(c);
+  int var = 0;
+  char* myString[];
+  while(var < m){
+    int lastVar = var;
+    int var = s.indexOf(c, var + x);
+    mystring[x] = s.substring(lastVar, var);
+  }
+  return myString;
+}
+
 
