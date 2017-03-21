@@ -12,8 +12,12 @@ void dataIN(int numBytes){
     char c = Wire.read();
     //String stringOne =  String('a');                                          // converting a constant char 
     String x = String(c);
-    
+    char* string[] = stringSuckMyDick(x, "Z");
+    String pi = string[0];
+    String R = string[1];
     Serial.print(c);    
+    Serial.print(pi);
+    Serial.print(R);
   }
 }
       
