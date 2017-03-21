@@ -11,13 +11,7 @@ void dataIN(int numBytes){
   while (1 < Wire.available()){
     char c = Wire.read();
     //String stringOne =  String('a');                                          // converting a constant char 
-    String x = String(c);
-    char* string[] = stringSuckMyDick(x, "Z");
-    String pi = string[0];
-    String R = string[1];
-    Serial.print(c);    
-    Serial.print(pi);
-    Serial.print(R);
+    Serial.println(c);
   }
 }
       
@@ -26,16 +20,5 @@ void loop() {
 
 }
 
-array stringSuckMyDick(String s, String c){
-  int m = s.lastIndexOf(c);
-  int var = 0;
-  char* myString[];
-  while(var < m){
-    int lastVar = var;
-    int var = s.indexOf(c, var + x);
-    mystring[x] = s.substring(lastVar, var);
-  }
-  return myString;
-}
 
 
