@@ -133,6 +133,7 @@ void setup()
 
 void loop()
 {
+
 //millis()
   float Time = millis()/1000;
   Serial.println(Time);
@@ -146,6 +147,13 @@ void loop()
   Serial.print("X: "); Serial.print(event.acceleration.x); Serial.print("  ");
   Serial.print("Y: "); Serial.print(event.acceleration.y); Serial.print("  ");
   Serial.print("Z: "); Serial.print(event.acceleration.z); Serial.print("  ");Serial.println("m/s^2 ");
+  logFile.print(event.acceleration.x);
+  logFile.print(",");
+  logFile.print(event.acceleration.y);
+  logFile.print(",");
+  logFile.print(event.acceleration.z);
+  logFile.print(",");
+  
 
   /* Delay before the next sample */
   delay(500);
@@ -177,6 +185,12 @@ void loop()
     Serial.print(bmp.pressureToAltitude(seaLevelPressure,
                                         event.pressure)); 
     Serial.println(" m");
+    logFile.print(event.pressure);
+    logFile.print(",");
+    logFile.print(temperature);
+    logFile.print(",");
+    logFile.print(bmp.pressureToAltitude(seaLevelPressure, event.pressure));
+    logFile.print(",");
   }
   else
   {
@@ -190,27 +204,18 @@ void loop()
   Serial.print("X: "); Serial.print((int)gyro.data.x);   Serial.print(" ");
   Serial.print("Y: "); Serial.print((int)gyro.data.y);   Serial.print(" ");
   Serial.print("Z: "); Serial.println((int)gyro.data.z); Serial.print(" ");
-  delay(100);
-
-//dataLogging
-  logFile.print(event.acceleration.x);
-  logFile.print(",");
-  logFile.print(event.acceleration.y);
-  logFile.print(",");
-  logFile.print(event.acceleration.z);
-  logFile.print(",");
-  logFile.print(event.pressure);
-  logFile.print(",");
-  logFile.print(temperature);
-  logFile.print(",");
-  logFile.print(bmp.pressureToAltitude(seaLevelPressure, event.pressure));
-  logFile.print(",");
   logFile.print((int)gyro.data.x);
   logFile.print(",");
   logFile.print((int)gyro.data.y);
   logFile.print(",");
   logFile.print((int)gyro.data.z);
   logFile.print(",");
+  delay(100);
+
+//dataLogging
+
+  
+  
   logFile.println(Time);
   logFile.flush();
   Serial.println("...");
