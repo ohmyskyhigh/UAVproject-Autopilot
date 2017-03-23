@@ -6,12 +6,9 @@
 #include <SPI.h>
 #include <SD.h>
 
-// On the Ethernet Shield, CS is pin 4. Note that even if it's not
-// used as the CS pin, the hardware CS pin (10 on most Arduino boards,
-// 53 on the Mega) must be left as an output or the SD library
-// functions will not work.
-const int chipSelect = 4;
 
+const int chipSelect = 4;
+//assign a variable for creating file
 File logFile;
 
 /* Assign a unique ID to this sensor at the same time */ 
@@ -103,9 +100,8 @@ void setup()
 //Gyro part
   // Try to initialise and warn if we couldn't detect the chip
   if (!gyro.begin(gyro.L3DS20_RANGE_250DPS))
-  //if (!gyro.begin(gyro.L3DS20_RANGE_500DPS))
-  //if (!gyro.begin(gyro.L3DS20_RANGE_2000DPS))
   {
+    //print this massage if gyro is not responding
     Serial.println("Oops ... unable to initialize the L3GD20. Check your wiring!");
     while (1);
   }
@@ -134,7 +130,7 @@ void setup()
 void loop()
 {
 
-//millis()
+//millis() time counter
   float Time = millis()/1000;
   Serial.println(Time);
   
@@ -147,6 +143,7 @@ void loop()
   Serial.print("X: "); Serial.print(event.acceleration.x); Serial.print("  ");
   Serial.print("Y: "); Serial.print(event.acceleration.y); Serial.print("  ");
   Serial.print("Z: "); Serial.print(event.acceleration.z); Serial.print("  ");Serial.println("m/s^2 ");
+  //log accelerometer data into SD card
   logFile.print(event.acceleration.x);
   logFile.print(",");
   logFile.print(event.acceleration.y);
@@ -185,6 +182,7 @@ void loop()
     Serial.print(bmp.pressureToAltitude(seaLevelPressure,
                                         event.pressure)); 
     Serial.println(" m");
+    //log pressure sensor data into sd card
     logFile.print(event.pressure);
     logFile.print(",");
     logFile.print(temperature);
@@ -204,6 +202,7 @@ void loop()
   Serial.print("X: "); Serial.print((int)gyro.data.x);   Serial.print(" ");
   Serial.print("Y: "); Serial.print((int)gyro.data.y);   Serial.print(" ");
   Serial.print("Z: "); Serial.println((int)gyro.data.z); Serial.print(" ");
+  //log gyro sensor data into sd card
   logFile.print((int)gyro.data.x);
   logFile.print(",");
   logFile.print((int)gyro.data.y);
@@ -212,10 +211,9 @@ void loop()
   logFile.print(",");
   delay(100);
 
-//dataLogging
 
   
-  
+  //log in time, and end logging
   logFile.println(Time);
   logFile.flush();
   Serial.println("...");
