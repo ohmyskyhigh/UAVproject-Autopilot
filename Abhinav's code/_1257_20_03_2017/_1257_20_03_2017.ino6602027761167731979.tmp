@@ -109,7 +109,10 @@ void loop() {
   Serial.println(gyro_overall_angle_z);
 
   // Push data to slave arduino for storage first
-  push_to_slave(accel_x);
+  
+  Wire.beginTransmission(8); // Start transmitting to slave
+  Wire.write(char(accel_x), sizeof(char(accel_x)));
+  Wire.endTransmission(); // Stop transmitting
 
   Serial.print("Gear from receiver ADC value ");
   Serial.println(analogRead(gear_receiver_pin));
@@ -132,22 +135,6 @@ void loop() {
 
   }
   delay(1000);
-}
-
-void push_to_slave(float value){
-  String value_string = (String)value;
-  char value_chararray[((String)value).length()+1];
-  
-  for(int x = 0; x < ((String)value).length(); x++){
-    value_chararray[x] = value_string[x];
-  }
-  value_chararray[((String)value).length()] = '\0';
-  
-  Serial.println(value_chararray);
-  
-  Wire.beginTransmission(8); // Start transmitting to slave
-  Wire.write(value_chararray);
-  Wire.endTransmission(); // Stop transmitting
 }
 
 void level_flight_roll_PID(float accel_value){
