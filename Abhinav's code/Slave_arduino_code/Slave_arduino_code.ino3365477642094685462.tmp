@@ -1,7 +1,5 @@
 #include <Wire.h>
 
-String all_data_csv[9] = {};
-
 void setup() {
   // put your setup code here, to run once:
   Wire.begin(8);
@@ -22,19 +20,14 @@ void receiveEvent(int howMany) {
     char char_val = Wire.read(); // receive byte as a character
     data_val_string += char_val;
   }
-  
   char char_id = Wire.read();
   data_id_string += char_id;
-
-  int data_id = (int)data_id_string[0]-48;
- 
-  all_data_csv[data_id] = data_val_string;
   
-  Serial.println(all_data_csv[0]);
-  Serial.println(all_data_csv[1]);
-  Serial.println(all_data_csv[2]);
-  Serial.println(all_data_csv[3]);
-  Serial.println(all_data_csv[4]);
-  Serial.println(all_data_csv[5]);
-  Serial.println(" ");
+  Serial.print(data_val_string);
+  Serial.print(" ");
+  Serial.println(data_id_string);
+
+  int data_id = (int)data_id_string[0];
+
+  float all_data_csv[] = [];
 }

@@ -28,9 +28,9 @@ Adafruit_LSM303_Accel_Unified accel = Adafruit_LSM303_Accel_Unified(54321); // U
 
 // Storage variables
 unsigned long Time; // Remember unsigned long does not store negative numbers otherwise it is just a number, i think
-int gyro_overall_angle_x;
-int gyro_overall_angle_y;
-int gyro_overall_angle_z;
+float gyro_overall_angle_x;
+float gyro_overall_angle_y;
+float gyro_overall_angle_z;
 
 void setup() {
   // put your setup code here, to run once:
@@ -72,7 +72,6 @@ void loop() {
   // put your main code here, to run repeatedly:
   
   // Store data values from the sensors first
-
   // Accelerometer
   sensors_event_t event;
   accel.getEvent(&event);
@@ -109,7 +108,7 @@ void loop() {
   Serial.println(gyro_overall_angle_z);
 
   // Push data to slave arduino for storage first
-  push_to_slave(accel_x);
+  push_to_slave(accel_x, char i = 0);
 
   Serial.print("Gear from receiver ADC value ");
   Serial.println(analogRead(gear_receiver_pin));
@@ -147,6 +146,7 @@ void push_to_slave(float value){
   
   Wire.beginTransmission(8); // Start transmitting to slave
   Wire.write(value_chararray);
+  Wire.write(i);
   Wire.endTransmission(); // Stop transmitting
 }
 
