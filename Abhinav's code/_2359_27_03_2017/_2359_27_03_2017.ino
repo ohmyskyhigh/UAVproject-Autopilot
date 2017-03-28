@@ -114,6 +114,7 @@ void loop() {
   push_to_slave(gyro_x, '3');
   push_to_slave(gyro_y, '4');
   push_to_slave(gyro_z, '5');
+  push_to_slave(Time, '6');
 
   Serial.print("Gear from receiver ADC value ");
   Serial.println(analogRead(gear_receiver_pin));
