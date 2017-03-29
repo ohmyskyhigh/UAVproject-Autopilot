@@ -1,3 +1,5 @@
+// Slave code
+
 #include <Wire.h>
 #include <SPI.h>
 #include <SD.h>
@@ -11,7 +13,7 @@ void setup() {
   // put your setup code here, to run once:
   Wire.begin(8);
   Serial.begin(9600);
-  delay(100);
+  delay(500);
 
   pinMode(SS, OUTPUT);
   
@@ -21,7 +23,7 @@ void setup() {
     // don't do anything more:
     while (1) ;
   }
-  Serial.println("card initialized.");
+  Serial.println("SD card initialized.");
 
   //give a name to our file
   char filename[15];
@@ -56,14 +58,16 @@ void setup() {
   logFile.print(",");
   logFile.print("gyro z(m/s^2)");
   logFile.print(",");
-//  logFile.print("press (hPa)");
-//  logFile.print(",");
-//  logFile.print("tempe (C))");
-//  logFile.print(",");
-//  logFile.print("altit (m)");
-//  logFile.print(",");
+  logFile.print("press (hPa)");
+  logFile.print(",");
+  logFile.print("tempe (C))");
+  logFile.print(",");
+  logFile.print("altit (m)");
+  logFile.print(",");
   logFile.println("Time (s)");
-  delay(500);
+  delay(100);
+  
+  logFile.close();
 }
 
 void loop() {
@@ -87,25 +91,22 @@ void receiveEvent(int howMany) {
  
   all_data_csv[data_id] = data_val_string;
   
-  Serial.println(all_data_csv[0]);
-  Serial.println(all_data_csv[1]);
-  Serial.println(all_data_csv[2]);
-  Serial.println(all_data_csv[3]);
-  Serial.println(all_data_csv[4]);
-  Serial.println(all_data_csv[5]);
-  Serial.println(all_data_csv[6]);
-  Serial.println(all_data_csv[7]);
-  Serial.println(all_data_csv[8]);
-  Serial.println(all_data_csv[9]);
-  Serial.println(" ");
+  Serial.println(all_data_csv[data_id]);
 
-  if(data_id == 6){
-    for(int i; i < 6; i++){
+  if(data_id == 9){
+    // Open up the file we're going to log to!
+    if (! logFile) {
+      Serial.println("error opening");
+      // Wait forever since we cant write data
+      while (1) ;
+    }
+    for(int i = 0; i < 9; i++){
       logFile.print(all_data_csv[i]);
       logFile.print(",");
     }
-    logFile.println(all_data_csv[7]);
-    logFile.flush();
+    logFile.println(all_data_csv[9]);
+    logFile.close();
     Serial.println("Data recorded");
+    Serial.println(" ");
   }
 }
