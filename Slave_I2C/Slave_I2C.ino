@@ -66,7 +66,7 @@ void setup() {
   logFile.print(",");
   logFile.print("gyro z(m/s^2)*100");
   logFile.print(",");
-  logFile.println("time");
+  logFile.println("time s");
 }
 void loop() {
   delay(100);
@@ -78,20 +78,11 @@ void receiveEvent(int howMany) {
   while (0 < Wire.available()) { // loop through all but the last 
     char c = Wire.read(); // receive byte as a character
     Serial.print(c);         // print the character
-    logFile.print(c);
+    logFile.println(c);
   }
+  //It will print some wired shit if I don't do this
   Serial.println("");
-
-
-
-
-//millis()
-  float Time = millis()/1000;
-  Serial.println(Time);
-
-//dataLogging
-  logFile.print(",");
-  logFile.println(Time);
+  
   logFile.flush();
   Serial.println("...");
   logFile.close();
