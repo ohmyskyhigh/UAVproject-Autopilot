@@ -66,6 +66,7 @@ void loop() {
   float seaLevelPressure;
   char mi[100];
   int Time = millis()/1000;
+  int previous_time = -1;
 
 //Accelerometer part
   /* Get a new sensor event */
@@ -136,17 +137,18 @@ void loop() {
   String u = String(gyro_X*100, 0);
   String v = String(gyro_Y*100, 0);
   String w = String(gyro_Z*100, 0);
-  String t = String(Time)
-  String m = String(o + "," + p + "," + q + "," + r + "," + s + "," + t + "," + u + "," + v + "," + w + "," + t);
+  String Ttime = String(Time);
+  String m = String(o + "," + p + "," + q + "," + r + "," + s + "," + t + "," + u + "," + v + "," + w + "," + Ttime);
   m.toCharArray(mi, 100);
-  Serial.println(a);
   Serial.println(mi);
   Wire.beginTransmission(8); // transmit to device #8
-  Wire.write(mi);
-  Wire.endTransmission();    // stop transmitting
-  //calibrate acceleration and 
-  While(
+  if(Time =! previous_time){
+    Wire.write(mi);
+    Wire.endTransmission();    // stop transmitting
+  }
+  previous_time = Time;
   delay(500);
+
 }
 
   
