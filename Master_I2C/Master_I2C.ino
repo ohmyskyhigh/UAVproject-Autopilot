@@ -88,8 +88,7 @@ void loop() {
   Serial.print("Z: "); Serial.print(event.acceleration.z); Serial.print("  ");Serial.println("m/s^2 ");
 
 
-  /* Delay before the next sample */
-  delay(500);
+
 
 
 //Pressure sensor part
@@ -120,7 +119,6 @@ void loop() {
   {
     Serial.println("Sensor error");
   }
-  delay(500);
   int d = event.pressure;
   int e = temperature;
   int f = bmp.pressureToAltitude(seaLevelPressure,event.pressure);
@@ -130,7 +128,6 @@ void loop() {
   Serial.print("X: "); Serial.print(gyro.data.x);   Serial.print(" ");
   Serial.print("Y: "); Serial.print(gyro.data.y);   Serial.print(" ");
   Serial.print("Z: "); Serial.println(gyro.data.z); Serial.print(" ");
-  delay(100);
   int g = 100*gyro.data.x;
   int h = 100*gyro.data.y;
   int i = 100*gyro.data.z;

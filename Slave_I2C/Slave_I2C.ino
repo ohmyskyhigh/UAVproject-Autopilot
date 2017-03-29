@@ -67,7 +67,6 @@ void setup() {
   logFile.print("gyro z(m/s^2)*100");
   logFile.print(",");
   logFile.println("time");
-  delay(500);
 }
 void loop() {
   delay(100);
@@ -95,6 +94,6 @@ void receiveEvent(int howMany) {
   logFile.println(Time);
   logFile.flush();
   Serial.println("...");
-  delay(500);
+  logFile.close();
   
 }

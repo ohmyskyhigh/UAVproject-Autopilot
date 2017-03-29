@@ -166,7 +166,6 @@ void loop() {
     digitalWrite(relay_switch_pin, LOW);
     // Things to do in manual control in this section
     Serial.println("Manual control mode");
-    
   }
   else{
     // Things to do in autopilot control in this section
