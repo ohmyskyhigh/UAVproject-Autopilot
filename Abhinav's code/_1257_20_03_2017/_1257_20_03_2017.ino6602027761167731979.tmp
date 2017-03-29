@@ -98,6 +98,7 @@ void loop() {
   Time = millis();
   
   // Update gyro angles, must be tested to see how it behaves, may increase overtime and become inaccurate
+  //kinda confuse why recording gyro data * Time.
   gyro_overall_angle_x += gyro_x*Time_since_last/1000;
   Serial.print("gyro present angle x ");
   Serial.println(gyro_overall_angle_x);
