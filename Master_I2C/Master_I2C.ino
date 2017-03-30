@@ -14,19 +14,15 @@ Adafruit_BMP085_Unified bmp = Adafruit_BMP085_Unified(10085);
 #ifdef USE_I2C
   // The default constructor uses I2C
   Adafruit_L3GD20 gyro;
-#else
-  // To use SPI, you have to define the pins
-  //#define GYRO_CS 4 // labeled CS
-  //#define GYRO_DO 5 // labeled SA0
-  //#define GYRO_DI 6  // labeled SDA
-  //#define GYRO_CLK 7 // labeled SCL
-  //Adafruit_L3GD20 gyro(GYRO_CS, GYRO_DO, GYRO_DI, GYRO_CLK);
+#else;
 #endif
 
 
 
 
 void setup() {
+
+
   Wire.begin(); // join i2c bus (address optional for master)   
 
   Serial.begin(9600);
@@ -59,8 +55,6 @@ void setup() {
   //Gyro part
   // Try to initialise and warn if we couldn't detect the chip
   if (!gyro.begin(gyro.L3DS20_RANGE_250DPS))
-  //if (!gyro.begin(gyro.L3DS20_RANGE_500DPS))
-  //if (!gyro.begin(gyro.L3DS20_RANGE_2000DPS))
   {
     Serial.println("Oops ... unable to initialize the L3GD20. Check your wiring!");
     while (1);
@@ -70,17 +64,19 @@ void setup() {
 void loop() {
   float temperature;
   float seaLevelPressure;
+  char mi[100];
+  int Time = millis()/1000;
+  int previous_time = -1;
 
 //Accelerometer part
   /* Get a new sensor event */
   sensors_event_t event;
   accel.getEvent(&event);
 
-  char mi[100];
-  int Count = 0;
-  int a = 100*event.acceleration.x;
-  int b = 100*event.acceleration.y;
-  int c = 100*event.acceleration.z;
+
+  float accel_X = event.acceleration.x;
+  float accel_Y = event.acceleration.y;
+  float accel_Z = event.acceleration.z;
 
   /* Display the results (acceleration is measured in m/s^2) */
   Serial.print("X: "); Serial.print(event.acceleration.x); Serial.print("  ");
@@ -88,8 +84,7 @@ void loop() {
   Serial.print("Z: "); Serial.print(event.acceleration.z); Serial.print("  ");Serial.println("m/s^2 ");
 
 
-  /* Delay before the next sample */
-  delay(500);
+
 
 
 //Pressure sensor part
@@ -120,40 +115,40 @@ void loop() {
   {
     Serial.println("Sensor error");
   }
-  delay(500);
-  int d = event.pressure;
-  int e = temperature;
-  int f = bmp.pressureToAltitude(seaLevelPressure,event.pressure);
+  int pressure = event.pressure;
+  int atitude = bmp.pressureToAltitude(seaLevelPressure,event.pressure);
 
 //Gyro part
   gyro.read();
   Serial.print("X: "); Serial.print(gyro.data.x);   Serial.print(" ");
   Serial.print("Y: "); Serial.print(gyro.data.y);   Serial.print(" ");
   Serial.print("Z: "); Serial.println(gyro.data.z); Serial.print(" ");
-  delay(100);
-  int g = 100*gyro.data.x;
-  int h = 100*gyro.data.y;
-  int i = 100*gyro.data.z;
+  float gyro_X = gyro.data.x;
+  float gyro_Y = gyro.data.y;
+  float gyro_Z = gyro.data.z;
 
 //Transmission
-  String o = String(a);
-  String p = String(b);
-  String q = String(c);
-  String r = String(d);
-  String s = String(e);
-  String t = String(f);
-  String u = String(g);
-  String v = String(h);
-  String w = String(i);
-  String m = String(o + "," + p + "," + q + "," + r + "," + s + "," + t + "," + u + "," + v + "," + w);
+  String o = String(accel_X*100, 0);
+  String p = String(accel_Y*100, 0);
+  String q = String(accel_Z*100, 0);
+  String r = String(pressure);
+  String s = String(temperature, 0);
+  String t = String(atitude);
+  String u = String(gyro_X*100, 0);
+  String v = String(gyro_Y*100, 0);
+  String w = String(gyro_Z*100, 0);
+  String Ttime = String(Time);
+  String m = String(o + "," + p + "," + q + "," + r + "," + s + "," + t + "," + u + "," + v + "," + w + "," + Ttime);
   m.toCharArray(mi, 100);
-  Serial.println(a);
   Serial.println(mi);
   Wire.beginTransmission(8); // transmit to device #8
-  Wire.write(mi);
-  Wire.endTransmission();    // stop transmitting
-  Count = Count + 1;
+  if(Time =! previous_time){
+    Wire.write(mi);
+    Wire.endTransmission();    // stop transmitting
+  }
+  previous_time = Time;
   delay(500);
+
 }
 
   
