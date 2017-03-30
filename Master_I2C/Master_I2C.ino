@@ -142,7 +142,7 @@ void loop() {
   m.toCharArray(mi, 100);
   Serial.println(mi);
   Wire.beginTransmission(8); // transmit to device #8
-  if(Time =! previous_time){
+  if(Time != previous_time){
     Wire.write(mi);
     Wire.endTransmission();    // stop transmitting
     Serial.println("data sent");
