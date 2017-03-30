@@ -145,9 +145,10 @@ void loop() {
   if(Time =! previous_time){
     Wire.write(mi);
     Wire.endTransmission();    // stop transmitting
+    Serial.println("data sent");
+    previous_time = Time;
   }
-  previous_time = Time;
-  delay(500);
+  delay(100);
 
 }
 

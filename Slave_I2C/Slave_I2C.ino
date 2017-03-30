@@ -78,11 +78,12 @@ void receiveEvent(int howMany) {
   while (0 < Wire.available()) { // loop through all but the last 
     char c = Wire.read(); // receive byte as a character
     Serial.print(c);         // print the character
-    logFile.println(c);
+    logFile.print(c);
   }
   //It will print some wired shit if I don't do this
   Serial.println("");
-  
+
+  logFile.println("");
   logFile.flush();
   Serial.println("...");
   logFile.close();
