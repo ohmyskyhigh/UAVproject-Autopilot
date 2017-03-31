@@ -3,6 +3,7 @@
 #include <Wire.h>
 #include <SPI.h>
 #include <SD.h>
+#include <Adafruit_GPS.h>
 
 const int chipSelect = 4;
 File logFile;
