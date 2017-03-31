@@ -83,7 +83,6 @@ void receiveEvent(int howMany) {
   //It will print some wired shit if I don't do this
   Serial.println("");
 
-  logFile.println("");
   logFile.flush();
   Serial.println("...");
   logFile.close();

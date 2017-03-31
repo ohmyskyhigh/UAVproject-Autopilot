@@ -64,7 +64,7 @@ void setup() {
 void loop() {
   float temperature;
   float seaLevelPressure;
-  char mi[100];
+  char mi[50];
   int Time = millis()/1000;
   int previous_time = -1;
 
@@ -139,7 +139,7 @@ void loop() {
   String w = String(gyro_Z*100, 0);
   String Ttime = String(Time);
   String m = String(o + "," + p + "," + q + "," + r + "," + s + "," + t + "," + u + "," + v + "," + w + "," + Ttime);
-  m.toCharArray(mi, 100);
+  m.toCharArray(mi, 50);
   Serial.println(mi);
   Wire.beginTransmission(8); // transmit to device #8
   if(Time != previous_time){
