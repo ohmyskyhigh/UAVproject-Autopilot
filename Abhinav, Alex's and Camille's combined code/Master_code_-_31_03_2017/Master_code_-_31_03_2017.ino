@@ -42,8 +42,6 @@ void setup() {
   pinMode(relay_switch_pin, OUTPUT);
   digitalWrite(relay_switch_pin, LOW);
   
-  Time = 0;
-  
   Serial.begin(9600); // Begin serial
   Wire.begin(); // Required for slave arduino
   delay(3000); // Large delay for slave arduino to properly boot up
@@ -78,6 +76,8 @@ void setup() {
 
   Setpoint_roll = 0; // Setpoint for Roll PID control
   Roll_PID.SetMode(AUTOMATIC); // Mode for Roll PID control
+  
+  Time = float(micros())/1000000.0;
 }
 
 void loop() {
@@ -97,14 +97,15 @@ void loop() {
   float gyro_y = gyro.data.y - 1.406;
   float gyro_z = gyro.data.z - 2.0785;
   
-  float Time_since_last = micros()/1000000.0000 - Time; // Remember this value is in seconds
-  Time = micros()/1000000.0000;
+  float Time_since_last = (float(micros())/1000000.0) - Time; // Remember this value is in seconds
+  Time = float(micros())/1000000.0;
   
   // Update gyro angles, must be tested to see how it behaves, may increase overtime and become inaccurate
   gyro_overall_angle_x += gyro_x*Time_since_last;
   gyro_overall_angle_y += gyro_y*Time_since_last;
   gyro_overall_angle_z += gyro_z*Time_since_last;
-
+  
+  Serial.println(Time_since_last);
   //Serial.println("....");
 
   //Pressure sensor
@@ -116,8 +117,8 @@ void loop() {
   float bmp_altitude = bmp.pressureToAltitude(seaLevelPressure, event.pressure);
 
   // Push data to slave arduino for storage
-  if(micros()/1000000.0000 - Time_for_log >= 1){
-    Time_for_log = micros()/1000000.0000;
+  if(float(micros())/1000000.0 - Time_for_log >= 1){
+    Time_for_log = float(micros())/1000000.0;
     
     String a = String(accel_x);
     String b = String(accel_y);
