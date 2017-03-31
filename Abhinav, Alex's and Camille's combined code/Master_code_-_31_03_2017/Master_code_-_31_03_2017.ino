@@ -1,0 +1,210 @@
+// Master code
+
+#include <Servo.h>
+#include <Wire.h>
+#include <Adafruit_L3GD20.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_LSM303_U.h>
+#include <Adafruit_BMP085_U.h>
+#include <PID_v1.h>
+
+Servo ailerons;
+Servo elevator;
+
+int ailerons_pin = 11;
+int elevator_pin = 10;
+int gear_receiver_pin = 0;
+int relay_switch_pin = 12;
+
+// For Roll PID stabilization 
+//Define Variables we'll be connecting to
+double Setpoint_roll, Input_roll, Output_roll;
+
+//Specify the links and initial tuning parameters for Roll PID
+double Kp_roll=2, Ki_roll=5, Kd_roll=0;
+PID Roll_PID(&Input_roll, &Output_roll, &Setpoint_roll, Kp_roll, Ki_roll, Kd_roll, DIRECT);
+
+Adafruit_L3GD20 gyro; // Creating gyro element, by default it uses i2c no need for defining it
+Adafruit_LSM303_Accel_Unified accel = Adafruit_LSM303_Accel_Unified(54321); // Unique ID for the accelerometer
+Adafruit_BMP085_Unified bmp = Adafruit_BMP085_Unified(10085); // Unique ID for the pressure sensor
+
+// Storage variables
+float Time; // Remember unsigned long does not store negative numbers otherwise it is just a number, i think
+float Time_for_log; // Time reference for logging data
+float gyro_overall_angle_x;
+float gyro_overall_angle_y;
+float gyro_overall_angle_z;
+
+void setup() {
+  // put your setup code here, to run once:
+  ailerons.attach(ailerons_pin);
+  elevator.attach(elevator_pin);
+  pinMode(relay_switch_pin, OUTPUT);
+  digitalWrite(relay_switch_pin, LOW);
+  
+  Time = 0;
+  
+  Serial.begin(9600); // Begin serial
+  Wire.begin(); // Required for slave arduino
+  delay(3000); // Large delay for slave arduino to properly boot up
+  
+  // Initialise the accelerometer
+  if(!accel.begin())
+  {
+    /* There was a problem detecting the ADXL345 ... check your connections */
+    Serial.println("Ooops, no LSM303 detected ... Check your wiring!");
+    while(1);
+  }
+  Serial.println("Accelerometer initialized");
+  
+  // Initialise the gyro
+  //if (!gyro.begin(gyro.L3DS20_RANGE_250DPS))
+  //if (!gyro.begin(gyro.L3DS20_RANGE_500DPS))
+  if (!gyro.begin(gyro.L3DS20_RANGE_2000DPS))
+  {
+    Serial.println("Oops ... unable to initialize the L3GD20. Check your wiring!");
+    while (1);
+  }
+  Serial.println("Gyro initialized");
+
+  // Initialise the pressure sensor
+  if(!bmp.begin())
+  {
+    /* There was a problem detecting the BMP085 ... check your connections */
+    Serial.print("Ooops, no BMP085 detected ... Check your wiring or I2C ADDR!");
+    while(1);
+  }
+  Serial.println("Pressure sensor initialized");
+
+  Setpoint_roll = 0; // Setpoint for Roll PID control
+  Roll_PID.SetMode(AUTOMATIC); // Mode for Roll PID control
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+  
+  // Store data values from the sensors first
+  // Accelerometer
+  sensors_event_t event;
+  accel.getEvent(&event);
+  float accel_x = event.acceleration.x;
+  float accel_y = event.acceleration.y;
+  float accel_z = event.acceleration.z;
+  
+  // Gyro
+  gyro.read();
+  float gyro_x = gyro.data.x - -0.345;  // Applied corretions, time averaged
+  float gyro_y = gyro.data.y - 1.406;
+  float gyro_z = gyro.data.z - 2.0785;
+  
+  float Time_since_last = micros()/1000000.0000 - Time; // Remember this value is in seconds
+  Time = micros()/1000000.0000;
+  
+  // Update gyro angles, must be tested to see how it behaves, may increase overtime and become inaccurate
+  gyro_overall_angle_x += gyro_x*Time_since_last;
+  gyro_overall_angle_y += gyro_y*Time_since_last;
+  gyro_overall_angle_z += gyro_z*Time_since_last;
+
+  //Serial.println("....");
+
+  //Pressure sensor
+  bmp.getEvent(&event);
+  float seaLevelPressure = 1023; // The value must be in hPa
+  float bmp_pressure = event.pressure;
+  float bmp_temp;
+  bmp.getTemperature(&bmp_temp);
+  float bmp_altitude = bmp.pressureToAltitude(seaLevelPressure, event.pressure);
+
+  // Push data to slave arduino for storage
+  if(micros()/1000000.0000 - Time_for_log >= 1){
+    Time_for_log = micros()/1000000.0000;
+    
+    String a = String(accel_x);
+    String b = String(accel_y);
+    String c = String(accel_z);
+    String d = String(gyro_x);
+    String e = String(gyro_y);
+    String f = String(gyro_z);
+    String g = String(bmp_pressure);
+    String h = String(bmp_temp);
+    String i = String(bmp_altitude);
+    String j = String(Time);
+    
+    String accel_data_string = String(a + "," + b + "," + c + ",");
+    char accel_data_array[accel_data_string.length()+1];
+    accel_data_string.toCharArray(accel_data_array, accel_data_string.length()+1);
+
+    String gyro_data_string = String(d + "," + e + "," + f + ",");
+    char gyro_data_array[gyro_data_string.length()+1];
+    gyro_data_string.toCharArray(gyro_data_array, gyro_data_string.length()+1);
+
+    String bmp_data_string = String(g + "," + h + "," + i + "," + j);
+    char bmp_data_array[bmp_data_string.length()+1];
+    bmp_data_string.toCharArray(bmp_data_array, bmp_data_string.length()+1);
+
+    Wire.beginTransmission(8); // Start transmitting to slave
+    Wire.write(accel_data_array);
+    Wire.endTransmission(); // Stop transmitting
+
+    Wire.beginTransmission(8); // Start transmitting to slave
+    Wire.write(gyro_data_array);
+    Wire.endTransmission(); // Stop transmitting
+
+    Wire.beginTransmission(8); // Start transmitting to slave
+    Wire.write(bmp_data_array);
+    Wire.endTransmission(); // Stop transmitting
+
+    Serial.println("Data recorded");
+    Serial.print("Time: "); Serial.print(Time); Serial.println(" (s)  ");
+    
+    Serial.print("X: "); Serial.print(accel_x); Serial.print("  ");
+    Serial.print("Y: "); Serial.print(accel_y); Serial.print("  ");
+    Serial.print("Z: "); Serial.print(accel_z); Serial.print("  "); Serial.println("m/s^2 ");
+    
+    Serial.print("X: "); Serial.print(gyro_x); Serial.print("  ");
+    Serial.print("Y: "); Serial.print(gyro_y); Serial.print("  ");
+    Serial.print("Z: "); Serial.print(gyro_z); Serial.print("  "); Serial.println("deg/s ");
+
+    Serial.println("gyro present angles");
+    Serial.print("X: "); Serial.print(gyro_overall_angle_x); Serial.print("  ");
+    Serial.print("Y: "); Serial.print(gyro_overall_angle_y); Serial.print("  ");
+    Serial.print("Z: "); Serial.print(gyro_overall_angle_z); Serial.print("  "); Serial.println("deg ");
+    
+    Serial.print("Pressure: "); Serial.print(bmp_pressure); Serial.print(" hPA  ");
+    Serial.print("Temperature: "); Serial.print(bmp_temp); Serial.print(" C  ");
+    Serial.print("Altitude: "); Serial.print(bmp_altitude); Serial.print("  "); Serial.println("m ");
+
+    Serial.print("Gear from receiver ADC value ");
+    Serial.println(analogRead(gear_receiver_pin));
+    Serial.println(" ");
+  }
+  
+  if(analogRead(gear_receiver_pin) < 255/2){
+    // Things to do in manual control in this section
+    digitalWrite(relay_switch_pin, LOW);
+    
+//    Serial.println("Manual control mode");
+    
+  }
+  else{
+    // Things to do in autopilot control in this section
+    digitalWrite(relay_switch_pin, HIGH);
+    
+//    Serial.println("Autopilot mode");
+    ailerons.write(100);
+    delay(100);
+    ailerons.write(50);
+    delay(100);
+    // First stabilize yourself in Roll angle
+  }
+}
+
+void level_flight_roll_PID(float accel_value){
+  Input_roll = accel_value;
+  Roll_PID.Compute();
+  ailerons.write(Output_roll);
+}
+
+void level_flight_pitch_PID(){
+  
+}
