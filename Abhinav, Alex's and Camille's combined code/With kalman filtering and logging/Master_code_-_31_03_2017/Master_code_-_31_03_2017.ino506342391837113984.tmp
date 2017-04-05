@@ -1,0 +1,372 @@
+// Master code
+
+#include <Servo.h>
+#include <Wire.h>
+#include <Adafruit_L3GD20.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_LSM303_U.h>
+#include <Adafruit_BMP085_U.h>
+#include <PID_v1.h>
+#include "Kalman.h"
+
+// The control surfaces we aim to ocntrol via arduino autopilot
+Servo ailerons;
+Servo elevator;
+
+// Variables that can be changed based on situation or connections
+byte ailerons_pin = 11;
+byte elevator_pin = 10;
+byte gear_receiver_pin = 0;
+byte relay_switch_pin = 12;
+float seaLevelPressure = 1023; // The value must be in hPa
+
+// For Roll PID stabilization 
+//Define Variables we'll be connecting to
+double Setpoint_roll, Input_roll, Output_roll;
+
+//Specify the links and initial tuning parameters for Roll PID
+double Kp_roll=2, Ki_roll=5, Kd_roll=0;
+PID Roll_PID(&Input_roll, &Output_roll, &Setpoint_roll, Kp_roll, Ki_roll, Kd_roll, DIRECT);
+
+// For Pitch PID stabilization 
+//Define Variables we'll be connecting to
+double Setpoint_pitch, Input_pitch, Output_pitch;
+
+//Specify the links and initial tuning parameters for Roll PID
+double Kp_pitch=2, Ki_pitch=5, Kd_pitch=0;
+PID Pitch_PID(&Input_pitch, &Output_pitch, &Setpoint_pitch, Kp_pitch, Ki_pitch, Kd_pitch, DIRECT);
+
+//#define RESTRICT_PITCH
+Kalman kalmanX; // Create the Kalman instances
+Kalman kalmanY;
+
+Adafruit_L3GD20 gyro; // Creating gyro element, by default it uses i2c no need for defining it
+Adafruit_LSM303_Accel_Unified accel = Adafruit_LSM303_Accel_Unified(54321); // Unique ID for the accelerometer
+Adafruit_BMP085_Unified bmp = Adafruit_BMP085_Unified(10085); // Unique ID for the pressure sensor
+
+// Storage variables
+float zero_error_accel_x = 0;
+float zero_error_accel_y = 0;
+float zero_error_accel_z = 0;
+float zero_error_gyro_x = 0;
+float zero_error_gyro_y = 0;
+float zero_error_gyro_z = 0;
+float zero_error_alt = 0;
+
+double Time; // Remember unsigned long does not store negative numbers otherwise it is just a number, i think
+double Time_for_log; // Time reference for logging data
+double gyroXangle;
+double gyroYangle;
+
+double accel_x, accel_y, accel_z;
+double gyro_x, gyro_y, gyro_z;
+
+double compAngleX, compAngleY; // Calculated angle using a complementary filter
+double kalAngleX, kalAngleY; // Calculated angle using a Kalman filter
+
+void setup() {
+  // put your setup code here, to run once:
+  ailerons.attach(ailerons_pin);
+  elevator.attach(elevator_pin);
+  pinMode(relay_switch_pin, OUTPUT);
+  digitalWrite(relay_switch_pin, LOW);
+  
+  Serial.begin(9600); // Begin serial
+  Wire.begin(); // Required for slave arduino
+  delay(3000); // Large delay for slave arduino to properly boot up
+  
+  // Initialise the accelerometer
+  if(!accel.begin())
+  {
+    /* There was a problem detecting the ADXL345 ... check your connections */
+    Serial.println("Ooops, no LSM303 detected ... Check your wiring!");
+    while(1);
+  }
+  Serial.println("Accelerometer initialized");
+  
+  // Initialise the gyro
+  //if (!gyro.begin(gyro.L3DS20_RANGE_250DPS))
+  //if (!gyro.begin(gyro.L3DS20_RANGE_500DPS))
+  if (!gyro.begin(gyro.L3DS20_RANGE_2000DPS))
+  {
+    Serial.println("Oops ... unable to initialize the L3GD20. Check your wiring!");
+    while (1);
+  }
+  Serial.println("Gyro initialized");
+
+  // Initialise the pressure sensor
+  if(!bmp.begin())
+  {
+    /* There was a problem detecting the BMP085 ... check your connections */
+    Serial.print("Ooops, no BMP085 detected ... Check your wiring or I2C ADDR!");
+    while(1);
+  }
+  Serial.println("Pressure sensor initialized");
+  Serial.println("Make sure you have correct and updated value of sea level pressure in hPa");
+
+  calibrate()  
+
+  sensors_event_t event;
+  accel.getEvent(&event);
+
+  // Accelerometer
+  accel_x = event.acceleration.x - zero_error_accel_x;
+  accel_y = event.acceleration.y - zero_error_accel_y;
+  accel_z = event.acceleration.z - zero_error_accel_z;
+ 
+  // Source: http://www.freescale.com/files/sensors/doc/app_note/AN3461.pdf eq. 25 and eq. 26
+  // atan2 outputs the value of -π to π (radians) - see http://en.wikipedia.org/wiki/Atan2
+  // It is then converted from radians to degrees
+#ifdef RESTRICT_PITCH // Eq. 25 and 26
+  double roll  = atan2(accel_y, accel_z) * RAD_TO_DEG;
+  double pitch = atan(-accel_x / sqrt(accel_y * accel_y + accel_z * accel_z)) * RAD_TO_DEG;
+#else // Eq. 28 and 29
+  double roll  = atan(accel_y / sqrt(accel_x * accel_x + accel_z * accel_z)) * RAD_TO_DEG;
+  double pitch = atan2(-accel_x, accel_z) * RAD_TO_DEG;
+#endif
+
+  kalmanX.setAngle(roll); // Set starting angle
+  kalmanY.setAngle(pitch);
+  gyroXangle = roll;
+  gyroYangle = pitch;
+  compAngleX = roll;
+  compAngleY = pitch;
+  
+  Time = micros();
+  Time_for_log = micros();
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+  
+  // Store data values from the sensors first
+  // Accelerometer
+  sensors_event_t event;
+  accel.getEvent(&event);
+  accel_x = event.acceleration.x - zero_error_accel_x;
+  accel_y = event.acceleration.y - zero_error_accel_y;
+  accel_z = event.acceleration.z - zero_error_accel_z;
+
+  // Source: http://www.freescale.com/files/sensors/doc/app_note/AN3461.pdf eq. 25 and eq. 26
+  // atan2 outputs the value of -π to π (radians) - see http://en.wikipedia.org/wiki/Atan2
+  // It is then converted from radians to degrees
+#ifdef RESTRICT_PITCH // Eq. 25 and 26
+  double roll  = atan2(accel_y, accel_z) * RAD_TO_DEG;
+  double pitch = atan(-accel_x / sqrt(accel_y * accel_y + accel_z * accel_z)) * RAD_TO_DEG;
+#else // Eq. 28 and 29
+  double roll  = atan(accel_y / sqrt(accel_x * accel_x + accel_z * accel_z)) * RAD_TO_DEG;
+  double pitch = atan2(-accel_x, accel_z) * RAD_TO_DEG;
+#endif
+  
+  // Gyro
+  gyro.read();
+  gyro_x = gyro.data.x - zero_error_gyro_x;  // Applied corretions, time averaged
+  gyro_y = gyro.data.y - zero_error_gyro_y;
+  gyro_z = gyro.data.z - zero_error_gyro_z;
+  
+  float dt = (float)(micros() - Time)/1000000.0; // Remember this value is in seconds
+  Time = micros();
+  
+  // If you want to check the loop timing
+//  Serial.println(dt);
+
+#ifdef RESTRICT_PITCH
+  // This fixes the transition problem when the accelerometer angle jumps between -180 and 180 degrees
+  if ((roll < -90 && kalAngleX > 90) || (roll > 90 && kalAngleX < -90)) {
+    kalmanX.setAngle(roll);
+    compAngleX = roll;
+    kalAngleX = roll;
+    gyroXangle = roll;
+  } else
+    kalAngleX = kalmanX.getAngle(roll, gyro_x, dt); // Calculate the angle using a Kalman filter
+
+  if (abs(kalAngleX) > 90)
+    gyro_y = -gyro_y; // Invert rate, so it fits the restriced accelerometer reading
+  kalAngleY = kalmanY.getAngle(pitch, gyro_y, dt);
+#else
+  // This fixes the transition problem when the accelerometer angle jumps between -180 and 180 degrees
+  if ((pitch < -90 && kalAngleY > 90) || (pitch > 90 && kalAngleY < -90)) {
+    kalmanY.setAngle(pitch);
+    compAngleY = pitch;
+    kalAngleY = pitch;
+    gyroYangle = pitch;
+  } else
+    kalAngleY = kalmanY.getAngle(pitch, gyro_y, dt); // Calculate the angle using a Kalman filter
+
+  if (abs(kalAngleY) > 90)
+    gyro_x = -gyro_x; // Invert rate, so it fits the restriced accelerometer reading
+  kalAngleX = kalmanX.getAngle(roll, gyro_x, dt); // Calculate the angle using a Kalman filter
+#endif
+
+  // gyro angles without filtering
+  gyroXangle += gyro_x*dt;
+  gyroYangle += gyro_y*dt;
+  //gyroXangle += kalmanX.getRate() * dt; // Calculate gyro angle using the unbiased rate
+  //gyroYangle += kalmanY.getRate() * dt;
+
+  compAngleX = 0.93 * (compAngleX + gyro_x * dt) + 0.07 * roll; // Calculate the angle using a Complimentary filter
+  compAngleY = 0.93 * (compAngleY + gyro_y * dt) + 0.07 * pitch;
+
+  // Reset the gyro angle when it has drifted too much
+  if (gyroXangle < -180 || gyroXangle > 180)
+    gyroXangle = kalAngleX;
+  if (gyroYangle < -180 || gyroYangle > 180)
+    gyroYangle = kalAngleY;
+    
+  // For instantaneous printing
+  Serial.print(roll); Serial.print("\t");
+  Serial.print(gyroXangle); Serial.print("\t");
+  Serial.print(compAngleX); Serial.print("\t");
+  Serial.print(kalAngleX); Serial.print("\t");
+
+  Serial.print("\t");
+
+  Serial.print(pitch); Serial.print("\t");
+  Serial.print(gyroYangle); Serial.print("\t");
+  Serial.print(compAngleY); Serial.print("\t");
+  Serial.print(kalAngleY); Serial.print("\t");
+
+  Serial.print("\r\n");
+
+  //Pressure sensor
+  bmp.getEvent(&event);
+  float bmp_pressure = event.pressure;
+  float bmp_temp;
+  bmp.getTemperature(&bmp_temp);
+  float bmp_altitude = bmp.pressureToAltitude(seaLevelPressure, bmp_pressure) - zero_error_alt;
+
+  // Push data to slave arduino for storage
+  if(micros() - Time_for_log >= 1000000){
+    Time_for_log = micros();
+    
+    String a = String(accel_x);
+    String b = String(accel_y);
+    String c = String(accel_z);
+    String d = String(gyro_x);
+    String e = String(gyro_y);
+    String f = String(gyro_z);
+    String g = String(kalAngleX);
+    String h = String(kalAngleY);
+    String i = String(bmp_pressure);
+    String j = String(bmp_temp);
+    String k = String(bmp_altitude);
+    String l = String(Time/1000000.0);
+    
+    String accel_data_string = String(a + "," + b + "," + c + ",");
+    char accel_data_array[accel_data_string.length()+1];
+    accel_data_string.toCharArray(accel_data_array, accel_data_string.length()+1);
+
+    String gyro_angle_data_string = String(d + "," + e + "," + f + "," + g + "," + h + ",");
+    char gyro_angle_data_array[gyro_angle_data_string.length()+1];
+    gyro_angle_data_string.toCharArray(gyro_angle_data_array, gyro_angle_data_string.length()+1);
+
+    String bmp_time_data_string = String(i + "," + j + "," + k + "," + l);
+    char bmp_time_data_array[bmp_time_data_string.length()+1];
+    bmp_time_data_string.toCharArray(bmp_time_data_array, bmp_time_data_string.length()+1);
+
+    Wire.beginTransmission(8); // Start transmitting to slave
+    Wire.write(accel_data_array);
+    Wire.endTransmission(); // Stop transmitting
+
+    Wire.beginTransmission(8); // Start transmitting to slave
+    Wire.write(gyro_angle_data_array);
+    Wire.endTransmission(); // Stop transmitting
+
+    Wire.beginTransmission(8); // Start transmitting to slave
+    Wire.write(bmp_time_data_array);
+    Wire.endTransmission(); // Stop transmitting
+    
+    // Printing all data
+//    Serial.println("Data recorded");
+//    Serial.print("Time: "); Serial.print(Time/1000000.0); Serial.println(" (s)  ");
+//    
+//    Serial.print("X: "); Serial.print(accel_x); Serial.print("  ");
+//    Serial.print("Y: "); Serial.print(accel_y); Serial.print("  ");
+//    Serial.print("Z: "); Serial.print(accel_z); Serial.print("  "); Serial.println("m/s^2 ");
+//
+//    Serial.print("X: "); Serial.print(gyro_x); Serial.print("  ");
+//    Serial.print("Y: "); Serial.print(gyro_y); Serial.print("  ");
+//    Serial.print("Z: "); Serial.print(gyro_z); Serial.print("  "); Serial.println("deg/s ");
+//    
+//    Serial.println("roll and pitch angles");
+//    Serial.print(roll); Serial.print("\t");
+//    Serial.print(gyroXangle); Serial.print("\t");
+//    Serial.print(compAngleX); Serial.print("\t");
+//    Serial.print(kalAngleX); Serial.print("\t");
+//  
+//    Serial.print("\t");
+//  
+//    Serial.print(pitch); Serial.print("\t");
+//    Serial.print(gyroYangle); Serial.print("\t");
+//    Serial.print(compAngleY); Serial.print("\t");
+//    Serial.print(kalAngleY); Serial.print("\t");
+//  
+//    Serial.print("\r\n");
+//
+//    Serial.print("Pressure: "); Serial.print(bmp_pressure); Serial.print(" hPA  ");
+//    Serial.print("Temperature: "); Serial.print(bmp_temp); Serial.print(" C  ");
+//    Serial.print("Altitude: "); Serial.print(bmp_altitude); Serial.print("  "); Serial.println("m ");
+//
+//    Serial.print("Gear from receiver ADC value ");
+//    Serial.println(analogRead(gear_receiver_pin));
+//    Serial.println(" ");
+  }
+  
+  if(analogRead(gear_receiver_pin) < 255/2){
+    // Things to do in manual control in this section
+    digitalWrite(relay_switch_pin, LOW);
+    
+//    Serial.println("Manual control mode");
+    
+  }
+  else{
+    // Things to do in autopilot control in this section
+    digitalWrite(relay_switch_pin, HIGH);
+    
+//    Serial.println("Autopilot mode");
+    ailerons.write(100);
+    delay(100);
+    ailerons.write(50);
+    delay(100);
+    // First stabilize yourself in Roll angle
+  }
+}
+
+void calibrate(){
+  // Calibrates all the sensors by averaging values 
+  for(int i = 0; i < 200; i++){
+    sensors_event_t event;
+    accel.getEvent(&event); 
+    zero_error_accel_x += event.acceleration.x/200.0;
+    zero_error_accel_y += event.acceleration.y/200.0;
+    zero_error_accel_z += event.acceleration.z/200.0;
+
+    gyro.read();
+    zero_error_gyro_x += gyro.data.x/200.0;
+    zero_error_gyro_y += gyro.data.y/200.0;
+    zero_error_gyro_z += gyro.data.z/200.0;
+    
+    bmp.getEvent(&event);
+    zero_error_alt += bmp.pressureToAltitude(seaLevelPressure, event.pressure)/200.0;
+  }
+}
+
+void level_flight_roll_PID(double value, int setpoint){
+  Roll_PID.SetMode(AUTOMATIC);  // Mode for Roll PID control 
+  Setpoint_roll = setpoint;
+  Input_roll = value;
+  Roll_PID.Compute();
+  ailerons.write(Output_roll);
+}
+
+void level_flight_pitch_PID(double value, int setpoint){
+  Pitch_PID.SetMode(AUTOMATIC); // Mode for Pitch PID control
+  Setpoint_roll = setpoint;
+  Input_pitch = value;
+  Pitch_PID.Compute();
+  elevator.write(Output_pitch);
+}
+
+void level_flight_pitch_PID(){
+  
+}
